@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https: http://localhost:* http://127.0.0.1:* http://[::1]:*; img-src 'self' https: data:; style-src 'self'; script-src 'self'; base-uri 'none'; form-action 'none'">
+    <meta name="theme-color" content="#ffffff">
+    <meta name="referrer" content="no-referrer">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <script src="theme.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <title>Sensorium Reader</title>
+</head>
+<body>
+    <header class="topbar" id="topbar" hidden>
+        <img class="brand-logo" src="icons/sensorium-globe.png" width="32" height="32" alt="Sensorium Reader">
+        <button id="backBtn" class="icon-btn" aria-label="Back" hidden>&larr;</button>
+        <h1 id="topTitle">Sensorium Reader</h1>
+        <button id="menuBtn" class="icon-btn" aria-label="Settings">&#9776;</button>
+    </header>
+
+    <nav id="toc" class="toc" aria-label="Contents" hidden></nav>
+
+    <main id="view" aria-live="polite"></main>
+
+    <div id="sheetBackdrop" class="backdrop" hidden></div>
+    <aside id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+        <div class="sheet-head">
+            <h2 id="sheetTitle"></h2>
+            <button id="sheetClose" class="icon-btn" aria-label="Close">&times;</button>
+        </div>
+        <div id="sheetBody" class="sheet-body"></div>
+    </aside>
+    <aside id="sheet2" class="sheet child" role="dialog" aria-modal="true" aria-labelledby="sheet2Title" hidden>
+        <div class="sheet-head">
+            <h2 id="sheet2Title"></h2>
+            <button id="sheet2Close" class="icon-btn" aria-label="Close">&times;</button>
+        </div>
+        <div id="sheet2Body" class="sheet-body"></div>
+    </aside>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
