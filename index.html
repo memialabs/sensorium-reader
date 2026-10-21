@@ -7,14 +7,27 @@
     <meta name="theme-color" content="#ffffff">
     <meta name="referrer" content="no-referrer">
     <link rel="manifest" href="manifest.json">
-    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="icons/s7m-favicon-32x32.png">
+    <link rel="apple-touch-icon" href="icons/s7m-icon-192x192.png">
     <script src="theme.js"></script>
     <link rel="stylesheet" href="style.css">
     <title>Sensorium Reader</title>
 </head>
 <body>
     <header class="topbar" id="topbar" hidden>
-        <img class="brand-logo" src="icons/sensorium-globe.png" width="32" height="32" alt="Sensorium Reader">
+        <a class="brand" href="#/" aria-label="Sensorium Reader – Newsletters">
+            <img class="brand-logo" src="icons/s7m-icon-32x32.png" width="32" height="32" alt="Memia Globe">
+            <span class="logo-separator" aria-hidden="true"></span>
+            <span class="logo-text">Sensorium <span class="logo-sup">Reader</span></span>
+        </a>
+        <span class="release-badge">Beta</span>
+        <div class="project-wrap" id="projectWrap" hidden>
+            <button type="button" id="projectBtn" class="project-lozenge" aria-label="Select project" aria-haspopup="listbox" aria-expanded="false">
+                <span id="projectText"></span>
+                <svg class="project-lozenge-arrow" width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 4L6 8L10 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div id="projectMenu" class="project-menu" role="listbox" aria-label="Projects" hidden></div>
+        </div>
         <button id="backBtn" class="icon-btn" aria-label="Back" hidden>&larr;</button>
         <h1 id="topTitle">Sensorium Reader</h1>
         <button id="menuBtn" class="icon-btn" aria-label="Settings">&#9776;</button>

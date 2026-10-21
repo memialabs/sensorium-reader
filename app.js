@@ -54,7 +54,7 @@
         root.dataset.theme = mode;
         const dark = mode === 'dark' || (mode === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
         const meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.content = dark ? '#121212' : '#ffffff';
+        if (meta) meta.content = dark ? '#2a2a2e' : '#ffffff';
     }
     const savedTheme = () => (['dark', 'system'].includes(store.get(THEME_KEY)) ? store.get(THEME_KEY) : 'light');
     applyTheme(savedTheme());
@@ -230,7 +230,60 @@
         $('backBtn').onclick = back ? () => { location.hash = back; } : null;
         document.documentElement.style.setProperty('--topbar-h', `${$('topbar').offsetHeight}px`);
         document.title = title === 'Sensorium Reader' ? title : `${title} · Sensorium Reader`;
+        loadProjectPicker();
     }
+
+    // "Ben's Default Project" -> "BDP"; single-word names are kept as is.
+    function abbreviate(name) {
+        const words = String(name || '').trim().split(/\s+/).filter(Boolean);
+        if (words.length < 2) return words[0] || '?';
+        return words.map((w) => Array.from(w)[0].toUpperCase()).join('');
+    }
+    // Prefer the key user's "Default" project when none (or an unknown one) is selected.
+    function pickDefaultProject(projects) {
+        return projects.find((p) => p.is_default === true)
+            || projects.find((p) => /\bdefault\b/i.test(p.name || ''))
+            || projects[0];
+    }
+    async function loadProjectPicker() {
+        const gen = generation;
+        try {
+            const { data: body } = await cachedApi('/projects');
+            const data = body.data;
+            if (gen !== generation || !Array.isArray(data) || !data.length) return;
+            let current = data.find((p) => String(p.id) === cfg.project);
+            if (!current) {
+                current = pickDefaultProject(data);
+                store.set(KEYS.project, String(current.id));
+            }
+            $('projectText').textContent = abbreviate(current.name);
+            $('projectBtn').title = current.name;
+            $('projectMenu').replaceChildren(...data.map((p) => h('button', {
+                type: 'button', class: 'project-item', role: 'option', title: p.name,
+                'aria-selected': String(p.id) === String(current.id) ? 'true' : 'false',
+                onclick: () => {
+                    closeProjectMenu();
+                    if (String(p.id) === cfg.project) return;
+                    store.set(KEYS.project, String(p.id));
+                    location.hash = '#/';
+                    route();
+                },
+            }, p.name)));
+            $('projectWrap').hidden = false;
+            document.documentElement.style.setProperty('--topbar-h', `${$('topbar').offsetHeight}px`);
+        } catch (e) { $('projectWrap').hidden = true; }
+    }
+    function closeProjectMenu() {
+        $('projectMenu').hidden = true;
+        $('projectBtn').setAttribute('aria-expanded', 'false');
+    }
+    $('projectBtn').addEventListener('click', () => {
+        const open = $('projectMenu').hidden;
+        $('projectMenu').hidden = !open;
+        $('projectBtn').setAttribute('aria-expanded', String(open));
+    });
+    document.addEventListener('click', (e) => { if (!e.target.closest('#projectWrap')) closeProjectMenu(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeProjectMenu(); });
 
     function note(msg, cls) { return h('p', { class: cls || 'muted' }, msg); }
 
@@ -300,6 +353,14 @@
         return safe ? h('a', { class: secondary ? 'btn secondary' : 'btn', href: safe, target: '_blank', rel: 'noopener noreferrer' }, label) : null;
     }
 
+    function sensoriumBtn(href) {
+        const safe = safeUrl(href);
+        const label = 'View in Sensorium';
+        return safe ? h('a', { class: 'btn icon-square', href: safe, target: '_blank', rel: 'noopener noreferrer', title: label, 'aria-label': label },
+            h('img', { src: 'icons/s7m-icon-32x32.png', width: 24, height: 24, alt: '' }),
+            h('span', { class: 'ext-arrow', 'aria-hidden': 'true' }, '↗')) : null;
+    }
+
     // Citation with a copy button. Copies rich text (italics kept) with a plain-text fallback.
     function citationBlock(text) {
         const body = h('span', null, emphasised(text));
@@ -331,10 +392,11 @@
             d.publisher_name ? note(d.publisher_name) : null,
             d.summary_title ? h('p', null, h('strong', null, d.summary_title)) : null,
             d.summary ? h('p', null, emphasised(d.summary)) : null,
-            safeUrl(d.url) ? h('p', null, h('strong', null, 'Source '),
-                h('a', { class: 'src-link', href: safeUrl(d.url), target: '_blank', rel: 'noopener noreferrer' }, d.source_title || d.title || d.url)) : null,
+            h('div', { class: 'src-row' },
+                safeUrl(d.url) ? h('p', null, h('strong', null, 'Source '),
+                    h('a', { class: 'src-link', href: safeUrl(d.url), target: '_blank', rel: 'noopener noreferrer' }, d.source_title || d.title || d.url)) : h('span'),
+                sensoriumBtn(sensoriumUrl('links', d.id))),
             d.citation ? citationBlock(d.citation) : null,
-            h('div', { class: 'actions' }, externalBtn(sensoriumUrl('links', d.id), 'View in Sensorium ↗', true)),
             labelled('Signals', d.why_important),
             d.narrative ? [h('h3', null, 'AI-generated narrative'), h('p', null, h('em', null, d.narrative))] : null,
             labelled('Editorial commentary', d.commentary),
@@ -371,11 +433,10 @@
         openSheet(story.title || 'Story', [
             story.summary ? h('p', null, emphasised(story.summary)) : null,
             labelled('Editorial commentary', story.commentary),
-            h('h3', null, `Sources (${story.links.length})`),
+            h('div', { class: 'src-row' }, h('h3', null, `Sources (${story.links.length})`), sensoriumBtn(sensoriumUrl('stories', story.id))),
             story.links.map((l) => h('button', { class: 'link-row', onclick: () => showLink(l, 'child') },
                 h('div', { class: 'title' }, l.title || l.url),
                 l.publisher_name ? h('div', { class: 'meta muted' }, l.publisher_name) : null)),
-            h('div', { class: 'actions' }, externalBtn(sensoriumUrl('stories', story.id), 'View in Sensorium ↗', true)),
         ]);
     }
 
@@ -592,7 +653,7 @@
                 store.set(KEYS.base, base);
                 store.set(KEYS.token, token.value.trim());
                 const keep = data.find((p) => String(p.id) === cfg.project);
-                store.set(KEYS.project, String((keep || data[0]).id));
+                store.set(KEYS.project, String((keep || pickDefaultProject(data)).id));
                 location.hash = '#/';
                 route();
             } catch (ex) {
@@ -782,7 +843,6 @@
     // ---------- settings menu ----------
     async function viewSettings() {
         closeSheet();
-        const sel = h('select', null, h('option', null, 'Loading…'));
         const theme = h('select', null,
             [['light', 'Light'], ['dark', 'Dark'], ['system', 'System']].map(([v, l]) => h('option', { value: v }, l)));
         theme.value = savedTheme();
@@ -793,18 +853,11 @@
         const body = [
             note(`Server: ${cfg.base}`),
             h('label', null, 'Theme', theme),
-            h('label', null, 'Project', sel),
             h('div', { class: 'actions' },
                 h('button', { class: 'btn secondary', onclick: () => { clearCaches(); closeSheet(); route(); } }, 'Clear saved newsletters'),
                 h('button', { class: 'btn', onclick: signOut }, 'Sign out')),
         ];
         openSheet('Settings', body);
-        try {
-            const { data } = await api('/projects');
-            sel.replaceChildren(...data.map((p) => h('option', { value: p.id }, p.name)));
-            sel.value = cfg.project;
-            sel.addEventListener('change', () => { store.set(KEYS.project, sel.value); closeSheet(); location.hash = '#/'; route(); });
-        } catch (e) { if (e.name === 'AbortError') return; sel.replaceChildren(h('option', null, e.message)); }
     }
 
     function clearCaches() {
