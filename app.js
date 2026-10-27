@@ -222,10 +222,10 @@
     const view = $('view');
     const show = (...nodes) => view.replaceChildren(...nodes.flat(Infinity).filter(Boolean));
 
-    function chrome({ title, back }) {
+    function chrome({ title, back, barTitle = title }) {
         clearToc();
         $('topbar').hidden = false;
-        $('topTitle').textContent = title;
+        $('topTitle').textContent = barTitle;
         $('backBtn').hidden = !back;
         $('backBtn').onclick = back ? () => { location.hash = back; } : null;
         document.documentElement.style.setProperty('--topbar-h', `${$('topbar').offsetHeight}px`);
@@ -668,14 +668,22 @@
             form);
     }
 
+    // Tab strip shared by the two top-level lists.
+    function tabs(active) {
+        return h('nav', { class: 'tabs', 'aria-label': 'Views' },
+            [['#/', 'Latest Links', 'links'], ['#/newsletters', 'Newsletters', 'news']].map(([href, label, key]) =>
+                h('a', { class: 'tab', href, 'aria-current': key === active ? 'page' : null }, label)));
+    }
+
     async function viewList() {
-        chrome({ title: 'Newsletters' });
+        chrome({ title: 'Newsletters', barTitle: '' });
         $('menuBtn').hidden = false;
-        show(note('Loading…'));
+        show(tabs('news'), note('Loading…'));
         try {
             const { data, stale } = await cachedApi(`/projects/${cfg.project}/collations?per_page=50`);
             const rows = data.data || [];
             show(
+                tabs('news'),
                 stale ? note('Offline — showing saved copy.') : null,
                 rows.length ? rows.map((c) => h('a', { class: 'card', href: `#/c/${c.id}` },
                     h('div', { class: 'title' }, c.published_title || c.name,
@@ -686,13 +694,53 @@
         } catch (e) { fail(e); }
     }
 
+    // Most recently imported links, newest first, paged by the server.
+    const LINKS_PER_PAGE = 25;
+
+    async function viewLinks(page) {
+        chrome({ title: 'Latest Links', barTitle: '' });
+        $('menuBtn').hidden = false;
+        show(tabs('links'), note('Loading…'));
+        try {
+            const qs = `page=${page}&per_page=${LINKS_PER_PAGE}&show_publisher=true`;
+            const { data, stale } = await cachedApi(`/projects/${cfg.project}/links?${qs}`);
+            const rows = data.data || []; // the server returns newest-first by import time
+            const meta = data.meta || {};
+            const pages = Number(meta.pages) || 1;
+            const go = (n) => { location.hash = n > 1 ? `#/links/${n}` : '#/'; window.scrollTo(0, 0); };
+            const pager = pages > 1 ? h('div', { class: 'pager' },
+                h('button', { class: 'btn secondary', type: 'button', disabled: page <= 1, onclick: () => go(page - 1) }, '← Newer'),
+                h('span', { class: 'muted' }, `Page ${page} of ${pages}${meta.total != null ? ` (${meta.total} links)` : ''}`),
+                h('button', { class: 'btn secondary', type: 'button', disabled: page >= pages, onclick: () => go(page + 1) }, 'Older →')) : null;
+            show(
+                tabs('links'),
+                stale ? note('Offline — showing saved copy.') : null,
+                rows.length ? rows.map(linkCard) : note('No links yet.'),
+                pager);
+        } catch (e) { fail(e); }
+    }
+
+    function linkCard(link) {
+        const open = () => showLink(link);
+        const img = safeUrl(link.image_url);
+        const publisher = link.publisher && link.publisher.name;
+        const when = link.date_time_stored ? new Date(link.date_time_stored).toLocaleString() : null;
+        return h('article', { class: 'card', tabindex: '0', 'data-key': `link:${link.id}`,
+                onclick: (e) => { if (!e.target.closest('a, button')) open(); },
+                onkeydown: (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) open(); } },
+            h('div', { class: 'title' }, link.title || link.url || '(untitled)'),
+            img ? h('img', { class: 'thumb', src: img, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }) : null,
+            link.description ? h('div', { class: 'summary' }, link.description) : null,
+            (publisher || when) ? h('div', { class: 'meta' }, [publisher, when].filter(Boolean).join(' · ')) : null);
+    }
+
     async function viewCollation(id) {
-        chrome({ title: 'Newsletter', back: '#/' });
+        chrome({ title: 'Newsletter', back: '#/newsletters' });
         show(note('Loading…'));
         try {
             const { data, stale } = await cachedApi(`/projects/${cfg.project}/collations/${id}/content`);
             const { collation, sections } = data.data;
-            chrome({ title: collation.published_title || collation.name, back: '#/' });
+            chrome({ title: collation.published_title || collation.name, back: '#/newsletters' });
             show(
                 h('div', { class: 'hero' },
                     h('h2', null, collation.published_title || collation.name),
@@ -873,6 +921,13 @@
         route();
     }
     $('menuBtn').addEventListener('click', viewSettings);
+    // The brand returns to the top of the current mode (Latest Links or Newsletters), refreshing it even when the hash is unchanged.
+    document.querySelector('.brand').addEventListener('click', (e) => {
+        e.preventDefault();
+        window.scrollTo(0, 0);
+        const target = location.hash.startsWith('#/newsletters') || location.hash.startsWith('#/c/') ? '#/newsletters' : '#/';
+        if (location.hash === target || (target === '#/' && !location.hash)) route(); else location.hash = target;
+    });
 
     // ---------- router ----------
     function route() {
@@ -880,7 +935,10 @@
         closeSheet();
         if (!cfg.token || !cfg.project) { viewSetup(); return; }
         const m = location.hash.match(/^#\/c\/(\d+)$/);
-        if (m) viewCollation(m[1]); else viewList();
+        const l = location.hash.match(/^#\/links(?:\/(\d+))?$/);
+        if (m) viewCollation(m[1]);
+        else if (location.hash === '#/newsletters') viewList();
+        else viewLinks(Math.max(1, Number(l && l[1]) || 1));
     }
     window.addEventListener('storage', (event) => {
         if (persistent && event.key && event.key.startsWith('reader')) route();

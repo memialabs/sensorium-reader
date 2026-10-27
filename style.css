@@ -173,3 +173,9 @@ h2.section, h3.subsection { scroll-margin-top: calc(var(--topbar-h, 56px) + 12px
 mark.hit { background: rgba(242, 101, 34, .3); color: inherit; border-radius: 2px; padding: 0 1px; }
 
 label.remember { display: flex; align-items: center; gap: 8px; }
+
+.tabs { display: flex; gap: 4px; margin: 0 0 12px; border-bottom: 1px solid var(--line); }
+.tab { padding: 8px 14px; color: var(--muted); text-decoration: none; font-weight: 600; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tab:hover { color: var(--fg); }
+.tab[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
+.pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 16px 0; flex-wrap: wrap; }
