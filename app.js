@@ -387,6 +387,16 @@
         return h('div', { class: 'citation' }, body, btn);
     }
 
+    function publisherIcon(d) {
+        if (typeof d.publisher_icon !== 'string' || !d.publisher_icon.trim()) return null;
+        let src;
+        try {
+            src = safeUrl(new URL(d.publisher_icon.trim(), 'https://www.s7m.net/static/images/publisher_icons/').href);
+        } catch (_) { return null; }
+        return src ? h('img', { class: 'publisher-icon', src, width: 24, height: 24,
+            alt: d.publisher_name || '', title: d.publisher_name || '', onerror: (event) => event.currentTarget.remove() }) : null;
+    }
+
     function linkBody(d, loaded) {
         return [
             d.publisher_name ? note(d.publisher_name) : null,
@@ -394,6 +404,7 @@
             d.summary ? h('p', null, emphasised(d.summary)) : null,
             h('div', { class: 'src-row' },
                 safeUrl(d.url) ? h('p', null, h('strong', null, 'Source '),
+                    publisherIcon(d),
                     h('a', { class: 'src-link', href: safeUrl(d.url), target: '_blank', rel: 'noopener noreferrer' }, d.source_title || d.title || d.url)) : h('span'),
                 sensoriumBtn(sensoriumUrl('links', d.id))),
             d.citation ? citationBlock(d.citation) : null,
@@ -419,6 +430,16 @@
             const { data } = await cachedApi(`/projects/${cfg.project}/links/${item.id}/reader`);
             if (mine !== linkLoad[level]) return; // a newer selection replaced this one
             const d = { ...item, ...data.data, commentary: item.commentary };
+            // Some reader responses omit publisher metadata; the link endpoint supplies it.
+            if (d.publisher_icon === undefined) {
+                try {
+                    const { data: detail } = await cachedApi(`/projects/${cfg.project}/links/${item.id}`);
+                    for (const key of ['publisher_id', 'publisher_name', 'publisher_website', 'publisher_icon']) {
+                        if (detail.data && key in detail.data) d[key] = detail.data[key];
+                    }
+                } catch (_) { /* Keep the link usable when publisher metadata is unavailable. */ }
+                if (mine !== linkLoad[level]) return;
+            }
             $(SHEETS[level].title).textContent = d.title || d.url || 'Link';
             setSheetBody(linkBody(d, true), level);
         } catch (e) {
@@ -612,7 +633,7 @@
 
     // ---------- views ----------
     function viewSetup(message) {
-        chrome({ title: 'Sensorium Reader' });
+        chrome({ title: 'Sensorium Reader', barTitle: '' });
         $('menuBtn').hidden = true;
         const sel = h('select', { id: 'baseSel' },
             PRESETS.map((p) => h('option', { value: p }, p)), h('option', { value: 'custom' }, 'Custom…'));
@@ -664,7 +685,7 @@
         });
         show(
             h('h2', null, 'Sign in'),
-            note('Create an API key in Sensorium (API Tokens). A read-only key with collations, links, stories, sections and analysis scopes is enough.'),
+            note('Create an API token on your Sensorium instance (User Settings>API Tokens, select "Create Sensorium Reader Token" and click "Generate Token".)'),
             form);
     }
 
