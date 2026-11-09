@@ -397,6 +397,63 @@
             alt: d.publisher_name || '', title: d.publisher_name || '', onerror: (event) => event.currentTarget.remove() }) : null;
     }
 
+    // Build only known provider URLs; never frame an arbitrary API-supplied URL.
+    function linkEmbed(d) {
+        const source = safeUrl(d.url);
+        if (!source) return null;
+        const url = new URL(source);
+        const host = url.hostname.toLowerCase();
+        let src, title, video = false;
+        if (d.content_type === 'social_post' && d.platform === 'x'
+            && ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com', 'mobile.x.com'].includes(host)) {
+            const match = url.pathname.match(/^\/(?:[^/]+\/status|i\/web\/status)\/(\d+)(?:\/|$)/);
+            if (!match) return null;
+            src = `https://platform.twitter.com/embed/Tweet.html?id=${match[1]}&dnt=true`;
+            title = 'X post';
+        } else if (d.content_type === 'social_post' && d.platform === 'bluesky' && host === 'bsky.app') {
+            const match = url.pathname.match(/^\/profile\/([^/]+)\/post\/([a-zA-Z0-9]+)\/?$/);
+            if (!match) return null;
+            const frame = embedFrame(null, 'Bluesky post', false);
+            // Embeds require the account DID, while shared links usually contain a handle.
+            (async () => {
+                try {
+                    const account = decodeURIComponent(match[1]);
+                    let did = account;
+                    if (!account.startsWith('did:')) {
+                        const response = await fetch(`https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?handle=${encodeURIComponent(account)}`, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+                        if (!response.ok) return;
+                        did = (await response.json()).did;
+                    }
+                    if (typeof did !== 'string' || !/^did:[a-z]+:[a-zA-Z0-9._:%-]+$/.test(did)) return;
+                    frame.src = `https://embed.bsky.app/embed/${encodeURIComponent(did)}/app.bsky.feed.post/${match[2]}`;
+                } catch (_) { /* The source link remains available if the provider is unreachable. */ }
+            })();
+            return frame;
+        } else if (d.content_type === 'online_video' && d.platform === 'youtube') {
+            let id;
+            if (['youtu.be', 'www.youtu.be'].includes(host)) id = url.pathname.split('/')[1];
+            else if (['youtube.com', 'www.youtube.com', 'm.youtube.com', 'www.youtube-nocookie.com'].includes(host)) {
+                id = url.pathname === '/watch' ? url.searchParams.get('v') : (url.pathname.match(/^\/(?:shorts|embed|live)\/([^/]+)/) || [])[1];
+            }
+            if (!id || !/^[a-zA-Z0-9_-]{11}$/.test(id)) return null;
+            src = `https://www.youtube-nocookie.com/embed/${id}`;
+            title = 'YouTube video';
+            video = true;
+        }
+        return src ? embedFrame(src, title, video) : null;
+    }
+
+    function embedFrame(src, title, video) {
+        return h('iframe', {
+            class: `link-embed ${video ? 'video-embed' : 'social-embed'}`, title,
+            loading: 'lazy', referrerpolicy: video ? 'strict-origin-when-cross-origin' : 'no-referrer',
+            allow: video ? 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share' : null,
+            allowfullscreen: video,
+            // Set the policy before src so the first navigation sends the required Referer.
+            src,
+        });
+    }
+
     function linkBody(d, loaded) {
         return [
             d.publisher_name ? note(d.publisher_name) : null,
@@ -407,6 +464,7 @@
                     publisherIcon(d),
                     h('a', { class: 'src-link', href: safeUrl(d.url), target: '_blank', rel: 'noopener noreferrer' }, d.source_title || d.title || d.url)) : h('span'),
                 sensoriumBtn(sensoriumUrl('links', d.id))),
+            linkEmbed(d),
             d.citation ? citationBlock(d.citation) : null,
             labelled('Signals', d.why_important),
             d.narrative ? [h('h3', null, 'AI-generated narrative'), h('p', null, h('em', null, d.narrative))] : null,
@@ -430,11 +488,11 @@
             const { data } = await cachedApi(`/projects/${cfg.project}/links/${item.id}/reader`);
             if (mine !== linkLoad[level]) return; // a newer selection replaced this one
             const d = { ...item, ...data.data, commentary: item.commentary };
-            // Some reader responses omit publisher metadata; the link endpoint supplies it.
-            if (d.publisher_icon === undefined) {
+            // The link endpoint supplies content types and any missing publisher metadata.
+            if (d.publisher_icon === undefined || d.content_type === undefined || d.platform === undefined) {
                 try {
                     const { data: detail } = await cachedApi(`/projects/${cfg.project}/links/${item.id}`);
-                    for (const key of ['publisher_id', 'publisher_name', 'publisher_website', 'publisher_icon']) {
+                    for (const key of ['publisher_id', 'publisher_name', 'publisher_website', 'publisher_icon', 'content_type', 'platform']) {
                         if (detail.data && key in detail.data) d[key] = detail.data[key];
                     }
                 } catch (_) { /* Keep the link usable when publisher metadata is unavailable. */ }

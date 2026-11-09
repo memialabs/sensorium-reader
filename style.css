@@ -180,3 +180,8 @@ label.remember { display: flex; align-items: center; gap: 8px; }
 .tab:hover { color: var(--fg); }
 .tab[aria-current="page"] { color: var(--accent); border-bottom-color: var(--accent); }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 16px 0; flex-wrap: wrap; }
+
+/* Provider embeds stay within both mobile and desktop link panels. */
+.link-embed { display: block; width: 100%; border: 0; margin: 12px 0; background: #fff; }
+.video-embed { aspect-ratio: 16 / 9; }
+.social-embed { height: 600px; }
