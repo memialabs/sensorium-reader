@@ -109,7 +109,7 @@ input, select { font: inherit; padding: 10px; border: 1px solid var(--line); bor
 /* Desktop: contents margin, newsletter and open panels are laid out as one left-aligned row.
    --n is the number of side panels (0, 1 or 2); --offset is where the newsletter starts, which
    leaves room for the contents navigator when it is shown (body.toc-on). Nothing shifts sideways
-   when panels open or close. */
+   when panels open or close. Panels share the remaining width, capped at the list width. */
 @media (min-width: 900px) {
     .backdrop { display: none; } /* panels don't block the newsletter, so another card can be clicked */
     body { --panel-w: 460px; --n: 0; --offset: 16px; }
@@ -118,14 +118,15 @@ input, select { font: inherit; padding: 10px; border: 1px solid var(--line); bor
     body.sheet-open.sheet-child-open { --n: 2; }
     body {
         --w: clamp(320px, calc(100vw - var(--offset) - var(--n) * var(--panel-w) - 16px), 760px);
+        --sheet-w: min(var(--w), calc((100vw - var(--offset) - var(--w)) / max(1, var(--n))));
     }
     main { width: var(--w); max-width: none; margin: 0 0 0 var(--offset); }
     .sheet {
         top: var(--topbar-h, 0px); bottom: 0; right: auto; left: calc(var(--offset, 0px) + var(--w, 0px));
-        width: var(--panel-w); max-height: none; border-radius: 0; box-shadow: 0 0 24px rgba(0,0,0,.12);
+        width: var(--sheet-w); max-height: none; border-radius: 0; box-shadow: 0 0 24px rgba(0,0,0,.12);
         border-left: 1px solid var(--line); padding-bottom: 0;
     }
-    .sheet.child { left: calc(var(--offset, 0px) + var(--w, 0px) + var(--panel-w)); }
+    .sheet.child { left: calc(var(--offset, 0px) + var(--w, 0px) + var(--sheet-w)); }
 }
 /* Too narrow for three columns: the link panel covers the story panel instead of sitting beside it. */
 @media (min-width: 900px) and (max-width: 1299px) {
