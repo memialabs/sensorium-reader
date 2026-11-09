@@ -98,6 +98,7 @@ input, select { font: inherit; padding: 10px; border: 1px solid var(--line); bor
 .card .src-line { margin-top: 8px; font-size: .9rem; }
 .card .commentary { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--accent); background: var(--bg); font-size: .9rem; }
 .card a { color: var(--accent); }
+.card .title a { color: var(--fg); }
 
 .sheet-body .citation { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; margin: 8px 0 4px; padding: 8px 10px; border-left: 3px solid var(--accent); font-size: .9rem; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0; }
@@ -139,7 +140,7 @@ input, select { font: inherit; padding: 10px; border: 1px solid var(--line); bor
     display: block; width: 100%; margin: 0; padding: 8px 0; text-align: left; font: inherit;
     background: none; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; cursor: pointer; color: inherit;
 }
-.sheet-body .link-row .title { color: var(--accent); font-weight: 400; text-decoration: underline; }
+.sheet-body .link-row .title { color: var(--fg); font-weight: 400; text-decoration: underline; }
 .sheet-body .link-row:hover .title, .sheet-body .link-row:focus-visible .title { text-decoration-thickness: 2px; }
 .sheet-body .link-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .sheet-body .link-row .meta { margin-top: 2px; }
