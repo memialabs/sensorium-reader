@@ -733,8 +733,11 @@
                 store.set(KEYS.token, token.value.trim());
                 const keep = data.find((p) => String(p.id) === cfg.project);
                 store.set(KEYS.project, String((keep || pickDefaultProject(data)).id));
-                location.hash = '#/';
-                route();
+                // Start a fresh document after connecting. Chrome can leave mouse
+                // wheel scrolling unresponsive when setup is replaced in place.
+                // Both storage modes retain credentials across this reload.
+                history.replaceState(null, '', '#/');
+                location.reload();
             } catch (ex) {
                 if (ex.name === 'AbortError') return;
                 err.textContent = ex.message;
