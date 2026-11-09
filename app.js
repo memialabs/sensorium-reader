@@ -306,6 +306,7 @@
 
     // Key of the story/link shown in the main panel (null when closed or showing something else).
     let activeKey = null;
+    let newsletterBackground = null; // Mounted newsletter and its story data; never persisted across reloads.
     let linksBackground = null; // URL and account of the list currently mounted behind a link.
     const linksContext = () => `${cfg.base}|${cfg.project}|${cfg.token}`;
 
@@ -343,8 +344,9 @@
         $(SHEETS[level].body).replaceChildren(...bodyNodes.flat(Infinity).filter(Boolean));
     }
     function closeSheet(level, keepUrl = false) {
-        if (level !== 'child' && !keepUrl && /^#\/l\/\d+$/.test(location.hash)) {
-            history.replaceState(null, '', linksBackground?.hash || '#/');
+        if (level !== 'child' && !keepUrl && /^#\/[ls]\/\d+$/.test(location.hash)) {
+            history.replaceState(null, '', location.hash.startsWith('#/s/')
+                ? newsletterBackground?.hash || '#/newsletters' : linksBackground?.hash || '#/');
         }
         if (level !== 'child') { linkLoad.main++; linkLoad.child++; }
         if (level !== 'child') { $('sheet').hidden = true; activeKey = null; }
@@ -526,17 +528,42 @@
         }
     }
 
-    function showStory(story) {
-        if (toggledOff(`story:${story.id}`)) return;
-        linkLoad.main++;
-        openSheet(story.title || 'Story', [
+    function storyBody(story, sourceLevel = 'child') {
+        const links = story.links || [];
+        const image = safeUrl(story.image_url);
+        return [
+            image ? h('img', { class: 'story-image', src: image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }) : null,
             story.summary ? h('p', null, emphasised(story.summary)) : null,
             labelled('Editorial commentary', story.commentary),
-            h('div', { class: 'src-row' }, h('h3', null, `Sources (${story.links.length})`), sensoriumBtn(sensoriumUrl('stories', story.id))),
-            story.links.map((l) => h('button', { class: 'link-row', onclick: () => showLink(l, 'child') },
+            h('div', { class: 'src-row' },
+                story.links ? h('h3', null, `Sources (${links.length})`) : null,
+                h('div', { class: 'src-actions' },
+                    h('a', { class: 'btn secondary', href: `#/s/${story.id}` }, 'Permalink'),
+                    sensoriumBtn(sensoriumUrl('stories', story.id)))),
+            links.map((l) => h('button', { class: 'link-row', onclick: () => showLink(l, sourceLevel) },
                 h('div', { class: 'title' }, l.title || l.url),
                 l.publisher_name ? h('div', { class: 'meta muted' }, l.publisher_name) : null)),
-        ]);
+        ];
+    }
+
+    function showStory(story, updateUrl = true) {
+        if (toggledOff(`story:${story.id}`)) return;
+        if (updateUrl && location.hash !== `#/s/${story.id}`) history.pushState(null, '', `#/s/${story.id}`);
+        linkLoad.main++;
+        openSheet(story.title || 'Story', storyBody(story));
+    }
+
+    async function viewStory(id) {
+        chrome({ title: 'Story' });
+        $('menuBtn').hidden = false;
+        show(note('Loading…'));
+        try {
+            const { data, stale } = await cachedApi(`/projects/${cfg.project}/stories/${id}/reader`);
+            const story = data.data;
+            chrome({ title: story.title || 'Story' });
+            show(h('h2', null, story.title || 'Story'), stale ? note('Offline — showing saved copy.') : null,
+                h('div', { class: 'sheet-body' }, storyBody(story, 'main')));
+        } catch (e) { fail(e); }
     }
 
     // ---------- contents navigator ----------
@@ -846,6 +873,10 @@
                     stale ? note('Offline — showing saved copy.') : null),
                 sections.length ? sections.map(renderSection) : note('This newsletter is empty.'));
             renderToc(sections);
+            newsletterBackground = { hash: `#/c/${id}`, context: linksContext(),
+                stories: new Map(sections.flatMap(sec => sec.subsections.flatMap(sub =>
+                    sub.items.filter(item => item.type === 'story').map(item => [String(item.id), item])))) };
+
         } catch (e) { fail(e); }
     }
 
@@ -1023,7 +1054,7 @@
     document.querySelector('.brand').addEventListener('click', (e) => {
         e.preventDefault();
         window.scrollTo(0, 0);
-        const target = location.hash.startsWith('#/newsletters') || location.hash.startsWith('#/c/') ? '#/newsletters' : '#/';
+        const target = location.hash.startsWith('#/newsletters') || (location.hash.startsWith('#/c/') || location.hash.startsWith('#/s/')) ? '#/newsletters' : '#/';
         if (location.hash === target || (target === '#/' && !location.hash)) route(); else location.hash = target;
     });
 
@@ -1034,10 +1065,23 @@
         closeSheet(undefined, true);
         if (!cfg.token || !cfg.project) { viewSetup(); return; }
         const m = location.hash.match(/^#\/c\/(\d+)$/);
+        const story = location.hash.match(/^#\/s\/(\d+)$/);
+        const newsletter = newsletterBackground?.context === linksContext() ? newsletterBackground : null;
         const link = location.hash.match(/^#\/l\/(\d+)$/);
         const l = location.hash.match(/^#\/links(?:\/(\d+))?$/);
         const background = linksBackground?.context === linksContext() ? linksBackground : null;
-        if (link) {
+        if (story) {
+            const item = newsletter?.stories.get(story[1]);
+            if (item) showStory(item, false);
+            else {
+                newsletterBackground = null;
+                linksBackground = null;
+                viewStory(story[1]);
+            }
+        } else if (event && newsletter && location.hash === newsletter.hash) {
+            // The newsletter DOM, search, display settings and scroll position stay mounted.
+        } else if (link) {
+            newsletterBackground = null;
             if (!background) {
                 linksBackground = null;
                 await viewLinks(1);
@@ -1048,6 +1092,7 @@
         } else if (event && background && location.hash === background.hash) {
             // Back/Forward closes the panel without replacing the list or its scroll position.
         } else {
+            newsletterBackground = null;
             linksBackground = null;
             if (m) viewCollation(m[1]);
             else if (location.hash === '#/newsletters') viewList();

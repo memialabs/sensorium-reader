@@ -7,10 +7,12 @@ const calls = [];
 const context = vm.createContext({
     cfg: { token: 'token', project: '7' },
     location: { hash: '#/l/42' },
-    generation: 0, linksBackground: null,
+    generation: 0, linksBackground: null, newsletterBackground: null,
     linksContext: () => 'account',
     invalidate() { context.generation++; }, closeSheet() {},
     showLink: item => calls.push(['link', item.id]),
+    showStory: item => calls.push(['story', item.id]),
+    viewStory: id => calls.push(['cold-story', id]),
     viewSetup: () => calls.push('setup'),
     viewLink: id => calls.push(['link', id]),
     viewCollation: id => calls.push(['collation', id]),
@@ -47,6 +49,23 @@ vm.runInContext(source.slice(source.indexOf('    async function route(event)'), 
         await context.route();
         assert.deepEqual(calls.pop(), expected);
     }
+    // Cold story URLs never load a newsletter or the Latest Links list.
+    context.location.hash = '#/s/8';
+    await context.route();
+    assert.deepEqual(calls.splice(0), [['cold-story', '8']]);
+    const story = { id: 8, title: 'Newsletter story', commentary: 'Editorial context', links: [] };
+    context.newsletterBackground = { hash: '#/c/42', context: 'account', stories: new Map([['8', story]]) };
+    await context.route({ type: 'hashchange' });
+    assert.deepEqual(calls.splice(0), [['story', 8]]);
+    context.location.hash = '#/c/42';
+    await context.route({ type: 'hashchange' });
+    assert.deepEqual(calls.splice(0), []); // Returning keeps the mounted newsletter intact.
+    context.location.hash = '#/s/8';
+    await context.route({ type: 'hashchange' });
+    assert.deepEqual(calls.splice(0), [['story', 8]]);
+    context.newsletterBackground.context = 'previous-account';
+    await context.route();
+    assert.deepEqual(calls.splice(0), [['cold-story', '8']]);
     context.cfg.token = '';
     context.location.hash = '#/l/42';
     await context.route();

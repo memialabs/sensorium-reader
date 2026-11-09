@@ -30,6 +30,8 @@ By default, the API key and saved newsletters use sessionStorage and last only f
 
 Use narrowly scoped, read-only API keys with an expiry, and revoke keys in Sensorium when no longer needed. Server URLs must use HTTPS; HTTP is allowed only for localhost, 127.0.0.1, and [::1].
 
+Direct URLs use `#/c/<id>` for newsletters, `#/l/<id>` for links, and `#/s/<id>` for stories. Opening a story from a newsletter keeps that newsletter's display, search and scroll position behind the story panel. Closing the panel or going Back restores that view. Opening a story URL in a fresh tab or reloading it shows a standalone story using `GET /api/v1/projects/{project_id}/stories/{story_id}/reader`, including its newsletter-style title, summary, image and ordered source links. Newsletter-specific editorial commentary is shown only when opening from that newsletter.
+
 ## Sensorium server requirement: CORS
 
 The Reader runs on a different origin from the API, so the Sensorium server must allow cross-origin calls. Set this environment variable on the server and restart:
