@@ -477,12 +477,11 @@
 
     function linkBody(d, loaded) {
         return [
-            d.publisher_name ? note(d.publisher_name) : null,
+            d.publisher_name ? h('p', { class: 'muted' }, publisherIcon(d), d.publisher_name) : publisherIcon(d),
             d.summary_title ? h('p', null, h('strong', null, d.summary_title)) : null,
             d.summary ? h('p', null, emphasised(d.summary)) : null,
             h('div', { class: 'src-row' },
                 safeUrl(d.url) ? h('p', null, h('strong', null, 'Source '),
-                    publisherIcon(d),
                     h('a', { class: 'src-link', href: safeUrl(d.url), target: '_blank', rel: 'noopener noreferrer' }, d.source_title || d.title || d.url)) : h('span'),
                 h('a', { class: 'btn secondary', href: `#/l/${d.id}` }, 'Permalink'),
                 sensoriumBtn(sensoriumUrl('links', d.id))),
