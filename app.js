@@ -306,6 +306,8 @@
 
     // Key of the story/link shown in the main panel (null when closed or showing something else).
     let activeKey = null;
+    let linksBackground = null; // URL and account of the list currently mounted behind a link.
+    const linksContext = () => `${cfg.base}|${cfg.project}|${cfg.token}`;
 
     function syncBackdrop() {
         const open = !$('sheet').hidden;
@@ -335,12 +337,16 @@
         body.scrollTop = 0;
         $(ids.el).hidden = false;
         syncBackdrop();
-        $(ids.close).focus();
+        $(ids.close).focus({ preventScroll: true });
     }
     function setSheetBody(bodyNodes, level = 'main') {
         $(SHEETS[level].body).replaceChildren(...bodyNodes.flat(Infinity).filter(Boolean));
     }
-    function closeSheet(level) {
+    function closeSheet(level, keepUrl = false) {
+        if (level !== 'child' && !keepUrl && /^#\/l\/\d+$/.test(location.hash)) {
+            history.replaceState(null, '', linksBackground?.hash || '#/');
+        }
+        if (level !== 'child') { linkLoad.main++; linkLoad.child++; }
         if (level !== 'child') { $('sheet').hidden = true; activeKey = null; }
         $('sheet2').hidden = true;
         syncBackdrop();
@@ -476,6 +482,7 @@
                 safeUrl(d.url) ? h('p', null, h('strong', null, 'Source '),
                     publisherIcon(d),
                     h('a', { class: 'src-link', href: safeUrl(d.url), target: '_blank', rel: 'noopener noreferrer' }, d.source_title || d.title || d.url)) : h('span'),
+                h('a', { class: 'btn secondary', href: `#/l/${d.id}` }, 'Permalink'),
                 sensoriumBtn(sensoriumUrl('links', d.id))),
             linkEmbed(d),
             d.citation ? citationBlock(d.citation) : null,
@@ -807,14 +814,19 @@
     }
 
     function linkCard(link) {
-        const open = () => showLink(link);
+        const open = () => {
+            if (activeKey !== `link:${link.id}`) history.pushState(null, '', `#/l/${link.id}`);
+            showLink(link);
+        };
         const img = safeUrl(link.image_url);
         const publisher = link.publisher && link.publisher.name;
         const when = link.date_time_stored ? new Date(link.date_time_stored).toLocaleString() : null;
         return h('article', { class: 'card', tabindex: '0', 'data-key': `link:${link.id}`,
                 onclick: (e) => { if (!e.target.closest('a, button')) open(); },
                 onkeydown: (e) => { if (e.key === 'Enter' && e.target === e.currentTarget) open(); } },
-            h('div', { class: 'title' }, link.title || link.url || '(untitled)'),
+            h('div', { class: 'title' }, h('a', { href: `#/l/${link.id}`, onclick: (e) => {
+                if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) { e.preventDefault(); open(); }
+            } }, link.title || link.url || '(untitled)')),
             img ? h('img', { class: 'thumb', src: img, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' }) : null,
             link.description ? h('div', { class: 'summary' }, link.description) : null,
             (publisher || when) ? h('div', { class: 'meta' }, [publisher, when].filter(Boolean).join(' · ')) : null);
@@ -1016,15 +1028,35 @@
     });
 
     // ---------- router ----------
-    function route() {
+    async function route(event) {
         invalidate();
-        closeSheet();
+        const mine = generation;
+        closeSheet(undefined, true);
         if (!cfg.token || !cfg.project) { viewSetup(); return; }
         const m = location.hash.match(/^#\/c\/(\d+)$/);
+        const link = location.hash.match(/^#\/l\/(\d+)$/);
         const l = location.hash.match(/^#\/links(?:\/(\d+))?$/);
-        if (m) viewCollation(m[1]);
-        else if (location.hash === '#/newsletters') viewList();
-        else viewLinks(Math.max(1, Number(l && l[1]) || 1));
+        const background = linksBackground?.context === linksContext() ? linksBackground : null;
+        if (link) {
+            if (!background) {
+                linksBackground = null;
+                await viewLinks(1);
+                if (mine !== generation) return;
+                linksBackground = { hash: '#/', context: linksContext() };
+            }
+            showLink({ id: link[1] });
+        } else if (event && background && location.hash === background.hash) {
+            // Back/Forward closes the panel without replacing the list or its scroll position.
+        } else {
+            linksBackground = null;
+            if (m) viewCollation(m[1]);
+            else if (location.hash === '#/newsletters') viewList();
+            else {
+                const hash = location.hash || '#/';
+                await viewLinks(Math.max(1, Number(l && l[1]) || 1));
+                if (mine === generation) linksBackground = { hash, context: linksContext() };
+            }
+        }
     }
     window.addEventListener('storage', (event) => {
         if (persistent && event.key && event.key.startsWith('reader')) route();

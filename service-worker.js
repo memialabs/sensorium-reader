@@ -1,5 +1,5 @@
 // Caches only the app shell. API responses are cached by the app (cleared on sign out).
-const CACHE = 'sensorium-reader-shell-v35';
+const CACHE = 'sensorium-reader-shell-v37';
 const SHELL = ['./', 'index.html', 'style.css', 'theme.js', 'config.js', 'app.js', 'manifest.json', 'icons/s7m-icon-32x32.png', 'icons/s7m-favicon-32x32.png'];
 
 self.addEventListener('install', (event) => {
