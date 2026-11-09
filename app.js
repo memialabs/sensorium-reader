@@ -425,7 +425,9 @@
                         did = (await response.json()).did;
                     }
                     if (typeof did !== 'string' || !/^did:[a-z]+:[a-zA-Z0-9._:%-]+$/.test(did)) return;
-                    frame.src = `https://embed.bsky.app/embed/${encodeURIComponent(did)}/app.bsky.feed.post/${match[2]}`;
+                    // Bluesky validates this path segment as a DID without decoding it first.
+                    // Keep its colons literal, as in the provider's own embed script.
+                    frame.src = `https://embed.bsky.app/embed/${did}/app.bsky.feed.post/${match[2]}`;
                 } catch (_) { /* The source link remains available if the provider is unreachable. */ }
             })();
             return frame;
