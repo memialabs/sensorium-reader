@@ -222,13 +222,23 @@
     const view = $('view');
     const show = (...nodes) => view.replaceChildren(...nodes.flat(Infinity).filter(Boolean));
 
-    function chrome({ title, back, barTitle = title }) {
+    function measureHeader() {
+        const barHeight = $('topbar').offsetHeight;
+        document.documentElement.style.setProperty('--topbar-h', `${barHeight}px`);
+    }
+    const headerObserver = new ResizeObserver(measureHeader);
+    headerObserver.observe($('topbar'));
+
+    function chrome({ title }) {
         clearToc();
         $('topbar').hidden = false;
-        $('topTitle').textContent = barTitle;
-        $('backBtn').hidden = !back;
-        $('backBtn').onclick = back ? () => { location.hash = back; } : null;
-        document.documentElement.style.setProperty('--topbar-h', `${$('topbar').offsetHeight}px`);
+        $('viewTabs').hidden = !cfg.token || !cfg.project;
+        const active = location.hash.startsWith('#/c/') || location.hash === '#/newsletters' ? 'news' : 'links';
+        $('viewTabs').querySelectorAll('a').forEach((tab) => {
+            if (tab.dataset.view === active) tab.setAttribute('aria-current', 'page');
+            else tab.removeAttribute('aria-current');
+        });
+        measureHeader();
         document.title = title === 'Sensorium Reader' ? title : `${title} · Sensorium Reader`;
         loadProjectPicker();
     }
@@ -270,7 +280,7 @@
                 },
             }, p.name)));
             $('projectWrap').hidden = false;
-            document.documentElement.style.setProperty('--topbar-h', `${$('topbar').offsetHeight}px`);
+            measureHeader();
         } catch (e) { $('projectWrap').hidden = true; }
     }
     function closeProjectMenu() {
@@ -305,6 +315,7 @@
         document.body.classList.toggle('sheet-open', open);
         document.body.classList.toggle('sheet-child-open', child);
         document.querySelectorAll('.card[data-key]').forEach((c) => c.classList.toggle('active', open && c.dataset.key === activeKey));
+        measureHeader();
         layoutToc();
     }
 
@@ -693,7 +704,7 @@
 
     // ---------- views ----------
     function viewSetup(message) {
-        chrome({ title: 'Sensorium Reader', barTitle: '' });
+        chrome({ title: 'Sensorium Reader' });
         $('menuBtn').hidden = true;
         const sel = h('select', { id: 'baseSel' },
             PRESETS.map((p) => h('option', { value: p }, p)), h('option', { value: 'custom' }, 'Custom…'));
@@ -752,22 +763,14 @@
             form);
     }
 
-    // Tab strip shared by the two top-level lists.
-    function tabs(active) {
-        return h('nav', { class: 'tabs', 'aria-label': 'Views' },
-            [['#/', 'Latest Links', 'links'], ['#/newsletters', 'Newsletters', 'news']].map(([href, label, key]) =>
-                h('a', { class: 'tab', href, 'aria-current': key === active ? 'page' : null }, label)));
-    }
-
     async function viewList() {
-        chrome({ title: 'Newsletters', barTitle: '' });
+        chrome({ title: 'Newsletters' });
         $('menuBtn').hidden = false;
-        show(tabs('news'), note('Loading…'));
+        show(note('Loading…'));
         try {
             const { data, stale } = await cachedApi(`/projects/${cfg.project}/collations?per_page=50`);
             const rows = data.data || [];
             show(
-                tabs('news'),
                 stale ? note('Offline — showing saved copy.') : null,
                 rows.length ? rows.map((c) => h('a', { class: 'card', href: `#/c/${c.id}` },
                     h('div', { class: 'title' }, c.published_title || c.name,
@@ -782,9 +785,9 @@
     const LINKS_PER_PAGE = 25;
 
     async function viewLinks(page) {
-        chrome({ title: 'Latest Links', barTitle: '' });
+        chrome({ title: 'Latest Links' });
         $('menuBtn').hidden = false;
-        show(tabs('links'), note('Loading…'));
+        show(note('Loading…'));
         try {
             const qs = `page=${page}&per_page=${LINKS_PER_PAGE}&show_publisher=true`;
             const { data, stale } = await cachedApi(`/projects/${cfg.project}/links?${qs}`);
@@ -797,7 +800,6 @@
                 h('span', { class: 'muted' }, `Page ${page} of ${pages}${meta.total != null ? ` (${meta.total} links)` : ''}`),
                 h('button', { class: 'btn secondary', type: 'button', disabled: page >= pages, onclick: () => go(page + 1) }, 'Older →')) : null;
             show(
-                tabs('links'),
                 stale ? note('Offline — showing saved copy.') : null,
                 rows.length ? rows.map(linkCard) : note('No links yet.'),
                 pager);
@@ -819,12 +821,12 @@
     }
 
     async function viewCollation(id) {
-        chrome({ title: 'Newsletter', back: '#/newsletters' });
+        chrome({ title: 'Newsletter' });
         show(note('Loading…'));
         try {
             const { data, stale } = await cachedApi(`/projects/${cfg.project}/collations/${id}/content`);
             const { collation, sections } = data.data;
-            chrome({ title: collation.published_title || collation.name, back: '#/newsletters' });
+            chrome({ title: collation.published_title || collation.name });
             show(
                 h('div', { class: 'hero' },
                     h('h2', null, collation.published_title || collation.name),
